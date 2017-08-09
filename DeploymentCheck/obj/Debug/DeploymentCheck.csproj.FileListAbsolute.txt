@@ -4,3 +4,9 @@ c:\users\wbratz\documents\visual studio 2015\Projects\DeploymentCheck\Deployment
 c:\users\wbratz\documents\visual studio 2015\Projects\DeploymentCheck\DeploymentCheck\obj\Debug\DeploymentCheck.csprojResolveAssemblyReference.cache
 c:\users\wbratz\documents\visual studio 2015\Projects\DeploymentCheck\DeploymentCheck\obj\Debug\DeploymentCheck.exe
 c:\users\wbratz\documents\visual studio 2015\Projects\DeploymentCheck\DeploymentCheck\obj\Debug\DeploymentCheck.pdb
+C:\git\checkdeployment\DeploymentCheck\bin\Debug\DeploymentCheck.exe.config
+C:\git\checkdeployment\DeploymentCheck\obj\Debug\DeploymentCheck.exe
+C:\git\checkdeployment\DeploymentCheck\obj\Debug\DeploymentCheck.pdb
+C:\git\checkdeployment\DeploymentCheck\obj\Debug\DeploymentCheck.csprojResolveAssemblyReference.cache
+C:\git\checkdeployment\DeploymentCheck\bin\Debug\DeploymentCheck.exe
+C:\git\checkdeployment\DeploymentCheck\bin\Debug\DeploymentCheck.pdb

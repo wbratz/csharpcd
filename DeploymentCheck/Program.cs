@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 // =====================================================================================================================
@@ -19,6 +20,7 @@ using System.Threading.Tasks;
 // Change History: 
 //                  07-31-2017 - Billy - Altered CheckDdl to use command line args for ddlcommands, removed hardcoded values.
 //                  07-31-2017 - Billy - Altered deployment key to remove first two lines, fixed sql execution issue.
+//                  08-08-2017 - Billy - Added call to Jira app, removing it from sql script. Fixes issue with proc hanging due to jira being unresponsive.
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -34,9 +36,9 @@ namespace DeploymentCheck
             string approvedPath = args[2];
             string failedPath = args[3];
             string hashKey = args[4];
-            string pKey = args[6];
             List<string> cmdsDDL = args[5].Split(',').ToList();
-            
+            string pKey = args[6];
+
             string dehash = DeploymentCheck.AddDeploymentKey.Decrypt(hashKey, pKey);
 
             //add deployment key
@@ -52,25 +54,70 @@ namespace DeploymentCheck
                 RemoveDeploymentKeyFailed(resultsFile, scriptFile, dehash, cmdsDDL);
 
             //Send info to JIRA moved from SQL script to keep proc from hanging if JIRA is unresponsive
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = @"\\fs04\public\DBA\Deployments\UpdateJiraTicket\JiraTicketAddComment.exe";
-            startInfo.Arguments = "";
-            
+            //Failed scripts
+            AddFailedCommentToJira(failedPath);
 
-        //Messing with checking for headers
-        //CheckScript(resultsPath, resultsFile);
+            //Succeeded scripts
+            AddSucceededCommentToJira(approvedPath);
 
-    }
+            //Messing with checking for headers
+            //CheckScript(resultsPath, resultsFile);
+
+        }
+
+        private static void AddFailedCommentToJira(string failedPath)
+        {
+            foreach (string scriptFile in Directory.GetFiles(failedPath, "*.sql"))
+            {
+
+                string deploymentArchive = Path.Combine(failedPath, DateTime.Now.ToString("yyyyMM"));
+                string jiraTicket = Path.GetFileNameWithoutExtension(scriptFile.Substring(scriptFile.LastIndexOf(' ') + 1));
+                string server = Path.GetFileName(scriptFile.Substring(0, scriptFile.IndexOf(" ")));
+                string msg = " Deployment of " + Path.GetFileName(scriptFile) + " to " + server + " failed, the database team has been notified.";
+
+                Directory.CreateDirectory(deploymentArchive);
+
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.FileName = @"\\fs04\public\DBA\Deployments\UpdateJiraTicket\JiraTicketAddComment.exe";
+                startInfo.Arguments = jiraTicket + " " + msg;
+                Process.Start(startInfo);
+
+                File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+
+            }
+        }
+
+        private static void AddSucceededCommentToJira(string approvedPath)
+        {
+            foreach (string scriptFile in Directory.GetFiles(approvedPath, "*.sql"))
+            {
+
+                string deploymentArchive = Path.Combine(approvedPath, DateTime.Now.ToString("yyyyMM"));
+                string jiraTicket = Path.GetFileNameWithoutExtension(scriptFile.Substring(scriptFile.LastIndexOf(' ') + 1));
+                string server = Path.GetFileName(scriptFile.Substring(0, scriptFile.IndexOf(" ")));
+                string msg = " Deployment of " + Path.GetFileName(scriptFile) + " to " + server + " was successful.";
+
+                Directory.CreateDirectory(deploymentArchive);
+
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.FileName = @"\\fs04\public\DBA\Deployments\UpdateJiraTicket\JiraTicketAddComment.exe";
+                startInfo.Arguments = jiraTicket + " " + msg;
+                Process.Start(startInfo);
+
+                File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+
+            }
+        }
 
         private static void RemoveDeploymentKeyFailed(string resultsFile, string scriptFile, string dehash, List<string> cmdsDDL)
         {
+
             string scriptContents = File.ReadAllText(scriptFile);
             string scriptName = Path.GetFileName(scriptFile);
 
             bool isDDL = CheckDdl(scriptContents, cmdsDDL);
 
-
-            if(isDDL)
+            if (isDDL)
             {
                 string tempFile = Path.GetTempFileName();
 
@@ -149,7 +196,6 @@ namespace DeploymentCheck
 
             string scriptContents = File.ReadAllText(scriptFile);
             string scriptName = Path.GetFileName(scriptFile);
-            string jiraTicket = Path.GetFileNameWithoutExtension(scriptFile.Substring(scriptFile.LastIndexOf(' ') + 1));
             bool isDDL = CheckDdl(scriptContents, cmdsDDL);
 
             if(isDDL)
