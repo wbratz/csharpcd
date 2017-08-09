@@ -20,7 +20,7 @@ using System.Threading.Tasks;
 // Change History: 
 //                  07-31-2017 - Billy - Altered CheckDdl to use command line args for ddlcommands, removed hardcoded values.
 //                  07-31-2017 - Billy - Altered deployment key to remove first two lines, fixed sql execution issue.
-//                  08-08-2017 - Billy - Added call to Jira app, removing it from sql script. Fixes issue with proc hanging due to jira being unresponsive.
+//                  08-08-2017 - Billy - Added call to Jira app, removing it from sql script. Fixes issue with proc hanging due to jira being unresponsive, currently disabled.
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -55,10 +55,10 @@ namespace DeploymentCheck
 
             //Send info to JIRA moved from SQL script to keep proc from hanging if JIRA is unresponsive
             //Failed scripts
-            AddFailedCommentToJira(failedPath);
+            //AddFailedCommentToJira(failedPath);
 
             //Succeeded scripts
-            AddSucceededCommentToJira(approvedPath);
+            //AddSucceededCommentToJira(approvedPath);
 
             //Messing with checking for headers
             //CheckScript(resultsPath, resultsFile);
