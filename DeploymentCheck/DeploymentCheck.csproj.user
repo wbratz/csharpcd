@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PublishUrlHistory />
+    <InstallUrlHistory />
+    <SupportUrlHistory />
+    <UpdateUrlHistory />
+    <BootstrapperUrlHistory />
+    <ErrorReportUrlHistory />
+    <FallbackCulture>en-US</FallbackCulture>
+    <VerifyUploadedFiles>false</VerifyUploadedFiles>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <StartArguments>"\\fs04\public\DBA\Deployments\CheckDeployments" "\\fs04\public\DBA\Deployments\UpcomingDeployments" "\\fs04\public\DBA\Deployments\SuccessfulDeployments" "\\fs04\public\DBA\Deployments\FailedDeployments" "sJca3r+R1/eC2SJDL8A1iaZzJ2N1UGjEbdRZfsonibMWYaWdtFx4m2cknIeC5jrxPWsiRTbLwZA=" "ALTER,COLLATIONS,CREATE,DROP,DISABLE TRIGGER,ENABLE TRIGGER,RENAME,UPDATE STATISTICS,TRUNCATE" "StarWarsIsAlmostAsAnnoyingAsStarWarsFans"</StartArguments>
+  </PropertyGroup>
+</Project>
