@@ -21,6 +21,7 @@ using System.Threading.Tasks;
 //                  07-31-2017 - Billy - Altered CheckDdl to use command line args for ddlcommands, removed hardcoded values.
 //                  07-31-2017 - Billy - Altered deployment key to remove first two lines, fixed sql execution issue.
 //                  08-08-2017 - Billy - Added call to Jira app, removing it from sql script. Fixes issue with proc hanging due to jira being unresponsive, currently disabled.
+//                  08-17-2017 - Billy - Added archiving file ability based on YearMonth of deployment.
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -47,11 +48,11 @@ namespace DeploymentCheck
 
             //remove deployment key from succeeded deployments
             foreach (string scriptFile in Directory.GetFiles(approvedPath, "*.sql"))
-                RemoveDeploymentKeySucceeded(resultsFile, scriptFile, dehash, cmdsDDL);
+                RemoveDeploymentKeySucceeded(resultsFile, scriptFile, dehash, approvedPath, cmdsDDL);
 
             //remove deployment key from failed deployments
             foreach (string scriptFile in Directory.GetFiles(failedPath, "*.sql"))
-                RemoveDeploymentKeyFailed(resultsFile, scriptFile, dehash, cmdsDDL);
+                RemoveDeploymentKeyFailed(resultsFile, scriptFile, dehash, failedPath, cmdsDDL);
 
             //Send info to JIRA moved from SQL script to keep proc from hanging if JIRA is unresponsive
             //Failed scripts
@@ -109,11 +110,12 @@ namespace DeploymentCheck
             }
         }
 
-        private static void RemoveDeploymentKeyFailed(string resultsFile, string scriptFile, string dehash, List<string> cmdsDDL)
+        private static void RemoveDeploymentKeyFailed(string resultsFile, string scriptFile, string dehash, string failedPath, List<string> cmdsDDL)
         {
 
             string scriptContents = File.ReadAllText(scriptFile);
             string scriptName = Path.GetFileName(scriptFile);
+            string deploymentArchive = Path.Combine(failedPath, DateTime.Now.ToString("yyyyMM"));
 
             bool isDDL = CheckDdl(scriptContents, cmdsDDL);
 
@@ -137,7 +139,8 @@ namespace DeploymentCheck
                 }
 
                 File.Delete(scriptFile);
-                File.Move(tempFile, scriptFile);
+                //File.Move(tempFile, scriptFile);
+                File.Move(tempFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
 
                 //write to results file
                 using (StreamWriter sw = new StreamWriter(resultsFile, true))
@@ -150,10 +153,11 @@ namespace DeploymentCheck
             }
         }
 
-        private static void RemoveDeploymentKeySucceeded(string resultsFile, string scriptFile, string dehash, List<string> cmdsDDL)
+        private static void RemoveDeploymentKeySucceeded(string resultsFile, string scriptFile, string dehash, string approvedPath ,List<string> cmdsDDL)
         {
             string scriptContents = File.ReadAllText(scriptFile);
             string scriptName = Path.GetFileName(scriptFile);
+            string deploymentArchive = Path.Combine(approvedPath, DateTime.Now.ToString("yyyyMM"));
 
             bool isDDL = CheckDdl(scriptContents, cmdsDDL);
 
@@ -177,7 +181,8 @@ namespace DeploymentCheck
                 }
 
                 File.Delete(scriptFile);
-                File.Move(tempFile, scriptFile);
+                //File.Move(tempFile, scriptFile);
+                File.Move(tempFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
 
 
                 //write to results file
