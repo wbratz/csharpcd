@@ -140,6 +140,8 @@ namespace DeploymentCheck
 
                 File.Delete(scriptFile);
                 //File.Move(tempFile, scriptFile);
+
+                //Moves to archived folder 
                 File.Move(tempFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
 
                 //write to results file
@@ -151,6 +153,9 @@ namespace DeploymentCheck
                 // string resultContents = File.ReadAllText(resultsFile); //Keep any existing text in the results file
                 // File.WriteAllText(resultsFile, resultContents + DateTime.Now.ToString() + " " + scriptName + "\t Deployment key removed \r\n");
             }
+
+            //Move the file to the archived folder if its not a DDL script
+            File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
         }
 
         private static void RemoveDeploymentKeySucceeded(string resultsFile, string scriptFile, string dehash, string approvedPath ,List<string> cmdsDDL)
@@ -194,6 +199,10 @@ namespace DeploymentCheck
                 //string resultContents = File.ReadAllText(resultsFile); //Keep any existing text in the results file
                 //File.WriteAllText(resultsFile, resultContents + DateTime.Now.ToString() + " " + scriptName + "\t Deployment key removed \r\n");
             }
+
+            //Move the file to the archived folder if its not a DDL script
+            File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+
         }
 
         private static void AddDeploymentKey(string resultsFile, string scriptFile, string dehash, List<string> cmdsDDL)
