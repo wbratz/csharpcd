@@ -22,6 +22,7 @@ using System.Threading.Tasks;
 //                  07-31-2017 - Billy - Altered deployment key to remove first two lines, fixed sql execution issue.
 //                  08-08-2017 - Billy - Added call to Jira app, removing it from sql script. Fixes issue with proc hanging due to jira being unresponsive, currently disabled.
 //                  08-17-2017 - Billy - Added archiving file ability based on YearMonth of deployment.
+//                  08-17-2017 - Billy - Adds CheckKey to ensure deployment key removal even if it exists in NON DDL script.
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -117,9 +118,14 @@ namespace DeploymentCheck
             string scriptName = Path.GetFileName(scriptFile);
             string deploymentArchive = Path.Combine(failedPath, DateTime.Now.ToString("yyyyMM"));
 
-            bool isDDL = CheckDdl(scriptContents, cmdsDDL);
+            // Changed to no longer check for DDL when removing, looks for deployment key and will remove if found
+            // Fixes issue where key log read key removed when it didn't exist
+            // Acts as fail safe if key is added to a Non DDL script by accident
 
-            if (isDDL)
+            //bool isDDL = CheckDdl(scriptContents, cmdsDDL);
+            bool hasKey = CheckContext(scriptContents, dehash);
+            //if(isDDL)
+            if (hasKey)
             {
                 string tempFile = Path.GetTempFileName();
 
@@ -164,9 +170,14 @@ namespace DeploymentCheck
             string scriptName = Path.GetFileName(scriptFile);
             string deploymentArchive = Path.Combine(approvedPath, DateTime.Now.ToString("yyyyMM"));
 
-            bool isDDL = CheckDdl(scriptContents, cmdsDDL);
-
-            if(isDDL)
+            // Changed to no longer check for DDL when removing, looks for deployment key and will remove if found
+            // Fixes issue where key log read key removed when it didn't exist
+            // Acts as fail safe if key is added to a Non DDL script by accident
+            
+            //bool isDDL = CheckDdl(scriptContents, cmdsDDL);
+            bool hasKey = CheckContext(scriptContents, dehash);
+            //if(isDDL)
+            if(hasKey)
             {
                 string tempFile = Path.GetTempFileName();
 
@@ -233,6 +244,11 @@ namespace DeploymentCheck
             return ddlCommands.Any(contents.ToUpper().Contains);
         }
 
+        private static bool CheckContext(string contents, string key)
+        {
+            return contents.Contains(key);
+        }
+        
         private static void CheckScript(string resultsPath, string resultsFile)
         {
             string sourcePath = @"\\fs04\public\DBA\Deployments\UpcomingDeployments";
