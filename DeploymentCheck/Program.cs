@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
+
 // =====================================================================================================================
 // AUTHOR: Billy
 //
@@ -23,6 +24,9 @@ using System.Threading.Tasks;
 //                  08-08-2017 - Billy - Added call to Jira app, removing it from sql script. Fixes issue with proc hanging due to jira being unresponsive, currently disabled.
 //                  08-17-2017 - Billy - Added archiving file ability based on YearMonth of deployment.
 //                  08-17-2017 - Billy - Adds CheckKey to ensure deployment key removal even if it exists in NON DDL script.
+//                  09-16-2017 - Billy - Fixed bug where the deployment scripts would move before key was removed.
+//                                       Fixed bug where archive folder would not be created if it didn't exist.
+//                                       Fixed bug where exception was thrown if it was a DDL script.
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -84,7 +88,7 @@ namespace DeploymentCheck
                 startInfo.Arguments = jiraTicket + " " + msg;
                 Process.Start(startInfo);
 
-                File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+                //File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
 
             }
         }
@@ -106,7 +110,7 @@ namespace DeploymentCheck
                 startInfo.Arguments = jiraTicket + " " + msg;
                 Process.Start(startInfo);
 
-                File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+                //File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
 
             }
         }
@@ -117,6 +121,10 @@ namespace DeploymentCheck
             string scriptContents = File.ReadAllText(scriptFile);
             string scriptName = Path.GetFileName(scriptFile);
             string deploymentArchive = Path.Combine(failedPath, DateTime.Now.ToString("yyyyMM"));
+
+            //Creates archive directory if it doesn't exist
+            Directory.CreateDirectory(deploymentArchive);
+
 
             // Changed to no longer check for DDL when removing, looks for deployment key and will remove if found
             // Fixes issue where key log read key removed when it didn't exist
@@ -159,9 +167,11 @@ namespace DeploymentCheck
                 // string resultContents = File.ReadAllText(resultsFile); //Keep any existing text in the results file
                 // File.WriteAllText(resultsFile, resultContents + DateTime.Now.ToString() + " " + scriptName + "\t Deployment key removed \r\n");
             }
-
             //Move the file to the archived folder if its not a DDL script
-            File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+            else
+            {
+                File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+            }
         }
 
         private static void RemoveDeploymentKeySucceeded(string resultsFile, string scriptFile, string dehash, string approvedPath ,List<string> cmdsDDL)
@@ -173,7 +183,10 @@ namespace DeploymentCheck
             // Changed to no longer check for DDL when removing, looks for deployment key and will remove if found
             // Fixes issue where key log read key removed when it didn't exist
             // Acts as fail safe if key is added to a Non DDL script by accident
-            
+
+            //Creates archive directory if it doesn't exist
+            Directory.CreateDirectory(deploymentArchive);
+
             //bool isDDL = CheckDdl(scriptContents, cmdsDDL);
             bool hasKey = CheckContext(scriptContents, dehash);
             //if(isDDL)
@@ -198,6 +211,7 @@ namespace DeploymentCheck
 
                 File.Delete(scriptFile);
                 //File.Move(tempFile, scriptFile);
+                Directory.CreateDirectory(deploymentArchive);
                 File.Move(tempFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
 
 
@@ -210,9 +224,11 @@ namespace DeploymentCheck
                 //string resultContents = File.ReadAllText(resultsFile); //Keep any existing text in the results file
                 //File.WriteAllText(resultsFile, resultContents + DateTime.Now.ToString() + " " + scriptName + "\t Deployment key removed \r\n");
             }
-
             //Move the file to the archived folder if its not a DDL script
-            File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+            else
+            {
+                File.Move(scriptFile, deploymentArchive + @"\" + Path.GetFileName(scriptFile));
+            }
 
         }
 
