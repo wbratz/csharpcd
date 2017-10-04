@@ -27,6 +27,7 @@ using System.Threading.Tasks;
 //                  09-16-2017 - Billy - Fixed bug where the deployment scripts would move before key was removed.
 //                                       Fixed bug where archive folder would not be created if it didn't exist.
 //                                       Fixed bug where exception was thrown if it was a DDL script.
+//                  10-03-2017 - Billy - Added Additional arg to explicitly define when to add the deployment key.
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -44,12 +45,18 @@ namespace DeploymentCheck
             string hashKey = args[4];
             List<string> cmdsDDL = args[5].Split(',').ToList();
             string pKey = args[6];
-
+            string keyWork = args[7];
+            
             string dehash = DeploymentCheck.AddDeploymentKey.Decrypt(hashKey, pKey);
 
-            //add deployment key
-            foreach (string scriptFile in Directory.GetFiles(sourcePath, "*.sql"))
-                AddDeploymentKey(resultsFile, scriptFile, dehash + "\r\n", cmdsDDL);
+            bool addKey = WorkCheck(keyWork);
+
+            if (addKey)
+            {
+                //add deployment key
+                foreach (string scriptFile in Directory.GetFiles(sourcePath, "*.sql"))
+                    AddDeploymentKey(resultsFile, scriptFile, dehash + "\r\n", cmdsDDL);
+            }
 
             //remove deployment key from succeeded deployments
             foreach (string scriptFile in Directory.GetFiles(approvedPath, "*.sql"))
@@ -265,6 +272,11 @@ namespace DeploymentCheck
             return contents.Contains(key);
         }
         
+        private static bool WorkCheck(string keyWork)
+        {
+            return keyWork.Contains("1");
+        }
+
         private static void CheckScript(string resultsPath, string resultsFile)
         {
             string sourcePath = @"\\fs04\public\DBA\Deployments\UpcomingDeployments";

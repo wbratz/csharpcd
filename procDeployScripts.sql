@@ -1,21 +1,10 @@
 USE DBA_Data
 GO
 
-CREATE TYPE DeployTableType AS TABLE
-	  (ScriptName VARCHAR(50)
-	   , JiraTicket VARCHAR(50)
-	   , ServerName VARCHAR(50)
-	   , DatabaseName VARCHAR(50)
-	   , HasRollback BIT
-	   , RollbackScriptName VARCHAR(65)
-	   , IsMultiple BIT
-	   , DeployOrder TINYINT)
-	    
-GO
-
-CREATE PROC dbo.Deployscripts 
-		  (@deployTable DeployTableType READONLY)
-AS 
+ALTER PROC dbo.Deployscripts 
+		 (@deployTable DeployTableType READONLY)
+AS
+ 
 BEGIN
 
 /***********************************************************************************************************************************************
@@ -43,34 +32,30 @@ DECLARE @deployTable TABLE
 	   , HasRollback BIT
 	   , RollbackScriptName VARCHAR(65)
 	   , IsMultiple BIT
-	   , DeployOrder TINYINT
-	   , Deployed BIT)
-*/
+	   , DeployOrder TINYINT)
+
+INSERT INTO @deployTable
+SELECT 'US-HEN-SQLDEV - DBA-941-ROLLBACK.sql',	'DBA-941',	'US-HEN-SQLDEV',	NULL,	NULL,	NULL,	1,	1
+INSERT INTO @deployTable
+SELECT 'US-HEN-SQLDEV - DBA-941.sql',			'DBA-941',	'US-HEN-SQLDEV',	NULL,	1,		'US-HEN-SQLDEV - DBA-941-ROLLBACK.sql',	1,	1
+INSERT INTO @deployTable
+SELECT 'US-HEN-SQLDEV - DBA-941_2-ROLLBACK.sql',	'DBA-941',	'US-HEN-SQLDEV',	NULL,	NULL,	NULL,	1,	2
+INSERT INTO @deployTable
+SELECT 'US-HEN-SQLDEV - DBA-941_2.sql',		     'DBA-941',	'US-HEN-SQLDEV',	NULL,	1,		'US-HEN-SQLDEV - DBA-941_2-ROLLBACK.sql',	1,	2
+--*/
+
+SET NOCOUNT ON
 
 --=====================================================================
--- Declare the varibles needed to do work
+-- Receive table values from passed in parameter.
 --=====================================================================
 
-    DECLARE @scriptName VARCHAR(512)
-		  , @jiraTicket VARCHAR(128)
-		  , @serverName VARCHAR(128)
-		  , @databaseName VARCHAR(128)
-		  , @isMultiple bit
-		  , @deployOrder TINYINT    
-		  , @sql VARCHAR(8000)
-		  , @runTime DATETIME = GETDATE()
-  		  , @sourcePath VARCHAR(1000) = (SELECT SourcePath FROM secure.DeploymentValues WHERE ID = (SELECT MAX(ID) FROM secure.deploymentValues))
-		  , @hasRollback BIT
-		  , @rollbackScriptName VARCHAR(512)
-
-    DECLARE @CommandShellOutputTable TABLE (Line NVARCHAR(MAX)) 
-
-    DECLARE @deploylist TABLE
+DECLARE @deploylist TABLE
 	  (ScriptName VARCHAR(512)
 	   , JiraTicket VARCHAR(128)
 	   , ServerName VARCHAR(512)
 	   , DatabaseName VARCHAR(128) DEFAULT 'master'
-	   , HasRollback BIT
+	   , HasRollback BIT DEFAULT 0
 	   , RollbackScriptName VARCHAR(512)
 	   , IsMultiple BIT
 	   , DeployOrder TINYINT)
@@ -90,13 +75,33 @@ SELECT ScriptName
      , HasRollback
      , RollbackScriptName
      , IsMultiple
-     , DeployOrder 
+     , DeployOrder
 FROM @deployTable
+--=====================================================================
+-- Declare the varibles needed to do work
+--=====================================================================
+
+    DECLARE @scriptName VARCHAR(512)
+		  , @jiraTicket VARCHAR(128)
+		  , @serverName VARCHAR(128)
+		  , @databaseName VARCHAR(128)
+		  , @isMultiple bit
+		  , @deployOrder TINYINT    
+		  , @sql VARCHAR(8000)
+		  , @runTime DATETIME = GETDATE()
+  		  , @sourcePath VARCHAR(1000) = (SELECT SourcePath FROM secure.DeploymentValues WHERE ID = (SELECT MAX(ID) FROM secure.deploymentValues))
+		  , @hasRollback BIT
+		  , @rollbackScriptName VARCHAR(512)
+
+    DECLARE @CommandShellOutputTable TABLE (Line NVARCHAR(MAX)) 
+
 --=====================================================================
 -- Create Results table
 --=====================================================================
+    IF OBJECT_ID('runningresults', 'U') IS NOT NULL 
+	   DROP TABLE runningresults; 
 
-    CREATE TABLE #results (ScriptName NVARCHAR(512)
+    CREATE TABLE runningresults (ScriptName NVARCHAR(512)
 					  , ExecutionCode NVARCHAR(512)
 					  , ResultOutput NVARCHAR(MAX)
 					  , serverName VARCHAR(250)
@@ -114,14 +119,14 @@ FROM @deployTable
 -- Loop through table and execute each script
 --=====================================================================
 
-    WHILE (SELECT COUNT(*) FROM @deploylist) > 0
+    WHILE (SELECT COUNT(*) FROM @deploylist WHERE RIGHT(ScriptName, 12) <> 'Rollback.sql') > 0
     BEGIN
 	   
 --===============================================================================================================================
 -- Insert into the results table where a multiple step script fails, and its following scripts are not deployed as a result
 --===============================================================================================================================
 
-	   INSERT INTO #results (ScriptName
+	   INSERT INTO runningresults (ScriptName
 	                       , ExecutionCode
 	                       , ResultOutput
 	                       , serverName
@@ -149,10 +154,12 @@ FROM @deployTable
 		  ON dt2.JiraTicket = dt1.JiraTicket
 		  AND dt1.IsMultiple = 1
 		  AND dt1.DeployOrder > dt2.DeployOrder -- Find multiple deployments with a higher deployment number
-	   WHERE EXISTS (SELECT * FROM #results WHERE dt2.JiraTicket = #results.jiraTicket AND ResultOutput = 'Failed') -- Where a previous deployment failed
-		    AND NOT EXISTS (SELECT * FROM #results WHERE dt1.JiraTicket = #results.jiraTicket) -- That already isn't in the results table
+	   WHERE EXISTS (SELECT * FROM runningresults WHERE dt2.JiraTicket = runningresults.jiraTicket AND ResultOutput = 'Failed') -- Where a previous deployment failed
+		    AND NOT EXISTS (SELECT * FROM runningresults WHERE dt1.JiraTicket = runningresults.jiraTicket) -- That already isn't in the results table
 
-	   DELETE FROM @deploylist WHERE EXISTS (SELECT * FROM #results WHERE [@deploylist].JiraTicket = #results.jiraTicket AND ResultOutput = 'Not Deployed')
+	   DELETE 
+	   FROM @deploylist 
+	   WHERE EXISTS (SELECT * FROM runningresults WHERE [@deploylist].JiraTicket = runningresults.jiraTicket AND ResultOutput = 'Not Deployed')
 
 	   SELECT TOP 1 @scriptName = scriptname
 				, @jiraTicket = JiraTicket
@@ -163,8 +170,9 @@ FROM @deployTable
 				, @hasRollback = HasRollback
 				, @rollbackScriptName = RollbackScriptName
 	   FROM @deploylist
+	   WHERE RIGHT(ScriptName, 12) <> 'Rollback.sql'
 	   ORDER BY IsMultiple, JiraTicket, DeployOrder --handles multiple deployments first and orders them by JiraTicket
-
+	   
 	   DELETE FROM @deploylist 
 	   WHERE ScriptName = @scriptName
 		    AND JiraTicket = @jiraTicket
@@ -174,16 +182,15 @@ FROM @deployTable
 		    AND DeployOrder = @deployOrder
 		    AND HasRollback = @hasRollback
 		    AND RollbackScriptName = @rollbackScriptName
-
-	   SET @sql = 'sqlcmd -S '+ @serverName + ' -d' + @databaseName + '-i ' + '"' + @sourcePath +'\'+ @scriptName + '"'
+		 
+	   SET @sql = 'sqlcmd -S '+ @serverName + ' -d ' + @databaseName + ' -i ' + '"' + @sourcePath +'\'+ @scriptName + '"'
 
 	   DELETE from @CommandShellOutputTable
 
 	   INSERT INTO @CommandShellOutputTable (Line)
 	   EXEC sys.xp_cmdshell @sql
-	   SELECT @sql
 
-	   INSERT INTO #results (SciptName
+	   INSERT INTO runningresults (ScriptName
 	                       , ExecutionCode
 					   , ResultOutput
 	                       , serverName
@@ -193,28 +200,95 @@ FROM @deployTable
 					   , isMultiple
 					   , DeployOrder
 					   , HasRollback
-					   , RollbackScriptName)
+					   , RollbackScriptName
+					   , Runtime)
 					 
 	   SELECT @scriptName
 			, @sql
-			, IIF(Line LIKE '%msg%', 'FAILED', 'SUCCEEDED') 
+			, IIF(STUFF(( SELECT ', ' + Line
+				     FROM @CommandShellOutputTable
+					FOR XML PATH ('')
+				), 1, 2, '') LIKE '%msg%', 'FAILED', 'SUCCEEDED') 
 			, @serverName
 			, @databaseName
 			, @jiraTicket
-			, Line
+			, STUFF(( SELECT ', ' + Line
+				     FROM @CommandShellOutputTable
+					FOR XML PATH ('')
+				), 1, 2, '') AS Line -- Takes all rows from Command line output and sets as a comma delimited string
 			, @isMultiple
 			, @deployOrder
 			, @hasRollback
 			, @rollbackScriptName
-	   FROM @CommandShellOutputTable
-
+			, @runTime
     END
 
-    SELECT *
+--=====================================================================
+-- Search Results for rollbacks
+--=====================================================================
+
+    IF OBJECT_ID('tempdb..#rollbacks', 'U') IS NOT NULL 
+      DROP TABLE #rollbacks; 
+
+    SELECT ScriptName
+         , ExecutionCode
+         , ResultOutput
+         , serverName
+         , DatabaseName
+         , jiraTicket
+         , ErrorMsg
+         , isMultiple
+         , DeployOrder
+         , HasRollback
+         , RollbackScriptName
+         , Rolledback
+         , Runtime
     INTO #rollbacks
-    FROM #results
+    FROM runningresults
     WHERE HasRollback = 1
 		AND ResultOutput = 'FAILED'
+
+--====================================================================================================================
+-- If there is a multiple step deployment where a step > 1 fails, find the previous steps and roll them back too.
+--====================================================================================================================
+
+    IF EXISTS (SELECT * FROM #rollbacks WHERE isMultiple = 1 AND DeployOrder > 1)
+    BEGIN 
+
+	   INSERT INTO #rollbacks (ScriptName
+	                         , ExecutionCode
+	                         , ResultOutput
+	                         , serverName
+	                         , DatabaseName
+	                         , jiraTicket
+	                         , ErrorMsg
+	                         , isMultiple
+	                         , DeployOrder
+	                         , HasRollback
+	                         , RollbackScriptName
+	                         , Rolledback
+	                         , Runtime)
+
+	   SELECT runningresults.ScriptName
+	   	 , runningresults.ExecutionCode
+	   	 , runningresults.ResultOutput
+	   	 , runningresults.serverName
+	   	 , runningresults.DatabaseName
+	   	 , runningresults.jiraTicket
+	   	 , runningresults.ErrorMsg
+	   	 , runningresults.isMultiple
+	   	 , runningresults.DeployOrder
+	   	 , runningresults.HasRollback
+	   	 , runningresults.RollbackScriptName
+	   	 , runningresults.Rolledback
+	   	 , runningresults.Runtime
+	   FROM runningresults
+	   JOIN #rollbacks
+	      ON #rollbacks.jiraTicket = runningresults.jiraTicket
+	   WHERE #rollbacks.DeployOrder > runningresults.DeployOrder 
+		    AND runningresults.HasRollback = 1
+
+    END
 
 --=====================================================================
 -- Rollback the failed deployments
@@ -229,10 +303,10 @@ FROM @deployTable
 				, @databaseName = ISNULL(DatabaseName, 'master')
 				, @isMultiple = IsMultiple
 				, @deployOrder = deployOrder
-				, @hasRollback = HasRollback
+				, @hasRollback = 0 -- Makes sure rollback script isn't flagged as having a rollback
 				, @rollbackScriptName = RollbackScriptName
 	   FROM #rollbacks
-	   ORDER BY IsMultiple, JiraTicket, DeployOrder desc
+	   ORDER BY IsMultiple, JiraTicket, DeployOrder DESC -- Deploy in reverse order
 
 	   DELETE FROM #rollbacks 
 	   WHERE ScriptName = @scriptName
@@ -241,7 +315,6 @@ FROM @deployTable
 		    AND ISNULL(DatabaseName, 'master') = @databaseName
 		    AND IsMultiple = @isMultiple
 		    AND DeployOrder = @deployOrder
-		    AND HasRollback = @hasRollback
 		    AND RollbackScriptName = @rollbackScriptName
 
 	   SET @sql = 'sqlcmd -S '+ @serverName + ' -d '+ @databaseName +' -i ' + '"' + @sourcePath +'\'+ @rollbackScriptName + '"'
@@ -251,9 +324,7 @@ FROM @deployTable
 	   INSERT INTO @CommandShellOutputTable (Line)
 	   EXEC sys.xp_cmdshell @sql
 
-   	   SELECT @sql
-
-	   	   INSERT INTO #results (SciptName
+	   	   INSERT INTO runningresults (ScriptName
 	                       , ExecutionCode
 					   , ResultOutput
 	                       , serverName
@@ -263,21 +334,64 @@ FROM @deployTable
 					   , isMultiple
 					   , DeployOrder
 					   , HasRollback
-					   , RollbackScriptName)
+					   , RollbackScriptName
+					   , Runtime)
 					 
 	   SELECT @scriptName
 			, @sql
-			, IIF(Line LIKE '%msg%', ' ROLLBACK FAILED', 'ROLLBACK SUCCEEDED') 
+			, IIF(STUFF(( SELECT ', ' + Line
+				     FROM @CommandShellOutputTable
+					FOR XML PATH ('')
+				), 1, 2, '')  LIKE '%msg%', ' ROLLBACK FAILED', 'ROLLBACK SUCCEEDED') 
 			, @serverName
 			, @databaseName
 			, @jiraTicket
-			, Line
+			, STUFF(( SELECT ', ' + Line
+				     FROM @CommandShellOutputTable
+					FOR XML PATH ('')
+				), 1, 2, '') 
 			, @isMultiple
 			, @deployOrder
 			, @hasRollback
-			, @rollbackScriptName
-	   FROM @CommandShellOutputTable
+			, NULL
+			, @runTime
 
     END
+
+    UPDATE runningresults
+    SET Rolledback = 1
+    FROM runningresults r1
+    WHERE EXISTS (SELECT * FROM runningresults r2 WHERE r1.jiraTicket = r2.jiraTicket AND r2.ResultOutput = 'ROLLBACK SUCCEEDED')
+
+    INSERT INTO dbo.DeploymentResults (SqlFileName
+                                     , ExecutionCode
+                                     , ResultOutput
+                                     , serverName
+                                     , DatabaseName
+                                     , JiraTicket
+                                     , ErrorMsg
+                                     , IsMultiple
+                                     , DeployOrder
+                                     , HasRollBack
+                                     , RollbackScriptName
+                                     , RolledBack
+                                     , Runtime)
+
+    SELECT ScriptName
+         , ExecutionCode
+         , ResultOutput
+         , serverName
+         , DatabaseName
+         , jiraTicket
+         , ErrorMsg
+         , isMultiple
+         , DeployOrder
+         , HasRollback
+         , RollbackScriptName
+         , Rolledback
+         , Runtime
+    FROM runningresults
+
+    DROP TABLE dbo.runningresults
 
 END
