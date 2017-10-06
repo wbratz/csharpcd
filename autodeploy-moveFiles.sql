@@ -1,6 +1,7 @@
 USE DBA_Data
 GO
 
+
 ALTER PROC DeploymentFileMoves
 AS
 BEGIN
@@ -31,6 +32,15 @@ BEGIN
 
     DECLARE @LatestDeployments TABLE (ScriptName VARCHAR(512), Result VARCHAR(30), RolledBack BIT, ID INT)
 
+
+    EXEC sp_configure 'show advanced options', 1
+    
+    RECONFIGURE
+    
+    EXEC sp_configure 'xp_cmdshell', 1
+    
+    RECONFIGURE
+
 --=====================================================================
 -- Find most recent deployment
 --=====================================================================
@@ -41,8 +51,17 @@ BEGIN
 						    , Result
 						    , RolledBack
 						    , ID)
-    SELECT IIF(dr.RollbackScriptName IS NULL, dr.SqlFileName, dr.RollbackScriptName) -- hard to explain, but ensures rollback script is removed 
+    SELECT IIF(NULLIF(dr.RollbackScriptName, '0') IS NULL, dr.SqlFileName, dr.RollbackScriptName) -- hard to explain, but ensures rollback script is removed 
 		 , dr.ResultOutput
+		 , dr.RolledBack
+		 , dr.ID
+    FROM dbo.DeploymentResults dr
+    WHERE EXISTS (SELECT 1 FROM CTE WHERE LastRun = dr.Runtime)
+
+    UNION 
+
+    SELECT dr.SqlFileName
+	      , dr.ResultOutput
 		 , dr.RolledBack
 		 , dr.ID
     FROM dbo.DeploymentResults dr
@@ -76,7 +95,7 @@ BEGIN
 
 		  SET @move = 'MOVE "' +@sourcePath+ '\'+@scriptName+'" ' + '"'+@approvedPath+'"'
 		  EXEC master.dbo.xp_cmdshell @move , no_output
-
+		  SELECT @move
 	   END
 
 --=====================================================================
@@ -94,3 +113,6 @@ BEGIN
     END
 
 END
+
+GO
+

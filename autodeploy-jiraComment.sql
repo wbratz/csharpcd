@@ -55,7 +55,17 @@ BEGIN
     WHERE EXISTS (SELECT 1 FROM CTE WHERE LastRun = dr.Runtime)
 	     AND dr.ResultOutput NOT LIKE 'ROLLBACK%'
 		AND ISNULL(dr.CommentAdded, 0) = 0
+		
+    UPDATE @LatestDeployments
+    SET result = 'FAILED'
+    WHERE RolledBack = 1
 
+    DELETE ld 
+    FROM @LatestDeployments ld
+    JOIN dbo.DeploymentResults
+	   ON DeploymentResults.ID = ld.ID
+    WHERE DeployOrder > 1
+    
 --==========================================================================
 -- Loop through results list and Comment on the files according the result
 --==========================================================================
