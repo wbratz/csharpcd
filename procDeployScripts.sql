@@ -85,10 +85,10 @@ SELECT ScriptName
      , JiraTicket
      , ServerName
      , DatabaseName
-     , HasRollback
-     , RollbackScriptName
+     , ISNULL(HasRollback, 0)
+     , ISNULL(RollbackScriptName, 0)
      , IsMultiple
-     , DeployOrder
+     , ISNULL(DeployOrder, 0)
 FROM @deployTable
 --=====================================================================
 -- Declare the varibles needed to do work
@@ -235,6 +235,16 @@ FROM @deployTable
 			, @rollbackScriptName
 			, @runTime
     END
+
+
+--=====================================================================================================
+-- Look through deployments and set any multiple deployments where a step failed to a failed message
+--=====================================================================================================
+
+    UPDATE r1
+    SET r1.ResultOutput = 'SUCCEEDED, FOLLOWING STEP FAILED'
+    FROM dbo.runningresults r1
+    WHERE EXISTS (SELECT 1 FROM dbo.runningresults r2 WHERE r2.jiraTicket = r1.jiraTicket AND r2.DeployOrder > r1.DeployOrder AND r2.ResultOutput = 'FAILED')
 
 --=====================================================================
 -- Search Results for rollbacks

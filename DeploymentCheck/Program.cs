@@ -28,6 +28,7 @@ using System.Threading.Tasks;
 //                                       Fixed bug where archive folder would not be created if it didn't exist.
 //                                       Fixed bug where exception was thrown if it was a DDL script.
 //                  10-03-2017 - Billy - Added Additional arg to explicitly define when to add the deployment key.
+//                  10-08-2017 - Billy - Added in fuctionality to read script to determine server and database allowing more flexibility in naming
 //======================================================================================================================
 
 namespace DeploymentCheck
@@ -49,8 +50,10 @@ namespace DeploymentCheck
             
             string dehash = DeploymentCheck.AddDeploymentKey.Decrypt(hashKey, pKey);
 
+            //Check the keyWork arg for a value
             bool addKey = WorkCheck(keyWork);
 
+            // If the value indicates deployment proceed allows multiple calls for different processes
             if (addKey)
             {
                 //add deployment key
@@ -187,6 +190,37 @@ namespace DeploymentCheck
             string scriptName = Path.GetFileName(scriptFile);
             string deploymentArchive = Path.Combine(approvedPath, DateTime.Now.ToString("yyyyMM"));
 
+            string dbLine = null;
+            string serverLine = null;
+
+            //Look for server and database in the sqlFile
+            foreach (var line in File.ReadAllLines(scriptFile))
+            {
+                if (line.ToUpper().Contains("USE"))
+                {
+                    dbLine = line.ToUpper();
+                }
+                if (line.ToUpper().Contains("--SERVER:"))
+                {
+                    serverLine = line.ToUpper();
+                }
+
+            }
+
+            if (dbLine != null)
+            {
+                int start = scriptFile.LastIndexOf(@"\");
+                int end = scriptFile.IndexOf(" - ");
+                string serverName = scriptFile.Substring(start, end - start);
+
+                if (dbLine != null)
+                {
+                    string dbname = dbLine.Substring(dbLine.LastIndexOf(" ") + 1).Trim();
+                    deploymentArchive = approvedPath + @"\" + serverName + @"\" + dbname;
+                }
+            }
+
+
             // Changed to no longer check for DDL when removing, looks for deployment key and will remove if found
             // Fixes issue where key log read key removed when it didn't exist
             // Acts as fail safe if key is added to a Non DDL script by accident
@@ -244,19 +278,58 @@ namespace DeploymentCheck
 
             string scriptContents = File.ReadAllText(scriptFile);
             string scriptName = Path.GetFileName(scriptFile);
-            bool isDDL = CheckDdl(scriptContents, cmdsDDL);
+            string dbLine = null;
+            string serverLine = null;
 
-            if(isDDL)
+            //Look for server and database in the sqlFile
+            foreach (var line in File.ReadAllLines(scriptFile))
             {
-                File.WriteAllText(scriptFile, dehash + scriptContents);
+                if (line.ToUpper().Contains("USE"))
+                {
+                    dbLine = line.ToUpper();
+                }
+                if (line.ToUpper().Contains("--SERVER:"))
+                {
+                    serverLine = line.ToUpper();
+                }
+
+            }
+            
+            if (serverLine != null )
+            {
+                string serverName = serverLine.Substring(serverLine.LastIndexOf(":") + 1).Trim();
+                File.Move(scriptFile, Path.GetDirectoryName(scriptFile)+@"\"+serverName + " - " + Path.GetFileName(scriptFile));
+
+                if (dbLine != null)
+                {
+                    string dbname = dbLine.Substring(dbLine.LastIndexOf("USE") + 1).Trim();
+                }               
             }
 
-            //write to results file
-            using (StreamWriter sw = new StreamWriter(resultsFile, true))
+            //Check if the script already contains the deployment key prevents multiple from being added.
+            if(scriptContents.Contains(dehash))
             {
-                sw.WriteLine(DateTime.Now.ToString() + " " + scriptName + "\t Deployment key added");
+                using (StreamWriter sw = new StreamWriter(resultsFile, true))
+                {
+                    sw.WriteLine(DateTime.Now.ToString() + " " + scriptName + "\t deployment key exists");
+                }
             }
+            else
+            {
+                bool isDDL = CheckDdl(scriptContents, cmdsDDL);
 
+                if (isDDL)
+                {
+                    File.WriteAllText(scriptFile, dehash + scriptContents);
+                }
+
+                //write to results file
+                using (StreamWriter sw = new StreamWriter(resultsFile, true))
+                {
+                    sw.WriteLine(DateTime.Now.ToString() + " " + scriptName + "\t Deployment key added");
+                }
+            }
+                
             //string resultContents = File.ReadAllText(resultsFile); //Keep any existing text in the results file
             //File.WriteAllText(resultsFile, resultContents + DateTime.Now.ToString() + " " + scriptName + "\t Deployment key removed \r\n");
 

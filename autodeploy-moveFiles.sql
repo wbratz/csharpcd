@@ -30,7 +30,7 @@ BEGIN
 		  , @rolledBack BIT
             , @id INT
 
-    DECLARE @LatestDeployments TABLE (ScriptName VARCHAR(512), Result VARCHAR(30), RolledBack BIT, ID INT)
+    DECLARE @LatestDeployments TABLE (ScriptName VARCHAR(512), Result VARCHAR(128), RolledBack BIT, ID INT)
 
 
     EXEC sp_configure 'show advanced options', 1
